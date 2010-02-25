@@ -318,7 +318,7 @@
 (defn nil?
   "Returns true if x is nil, false otherwise."
   {:tag Boolean}
-  [x] (identical? x nil))
+  [x] (clojure.lang.Util/identical x nil))
 
 (def
 
@@ -381,12 +381,12 @@
 (defn false?
   "Returns true if x is the value false, false otherwise."
   {:tag Boolean}
-  [x] (identical? x false))
+  [x] (clojure.lang.Util/identical x false))
 
 (defn true?
   "Returns true if x is the value true, false otherwise."
   {:tag Boolean}
-  [x] (identical? x true))
+  [x] (clojure.lang.Util/identical x true))
 
 (defn not
   "Returns true if x is logical false, false otherwise."
@@ -423,13 +423,6 @@
   ([name] (if (symbol? name) name (clojure.lang.Symbol/intern name)))
   ([ns name] (clojure.lang.Symbol/intern ns name)))
 
-(defn keyword
-  "Returns a Keyword with the given namespace and name.  Do not use :
-  in the keyword strings, it will be added automatically."
-  {:tag clojure.lang.Keyword}
-  ([name] (if (keyword? name) name (clojure.lang.Keyword/intern name)))
-  ([ns name] (clojure.lang.Keyword/intern ns name)))
-
 (defn gensym
   "Returns a new symbol with a unique name. If a prefix string is
   supplied, the name is prefix# where # is some unique number. If
@@ -450,6 +443,15 @@
                 (throw (IllegalArgumentException.
                          "cond requires an even number of forms")))
             (cons 'clojure.core/cond (next (next clauses))))))
+
+(defn keyword
+  "Returns a Keyword with the given namespace and name.  Do not use :
+  in the keyword strings, it will be added automatically."
+  {:tag clojure.lang.Keyword}
+  ([name] (cond (keyword? name) name
+                (symbol? name) (clojure.lang.Keyword/intern #^clojure.lang.Symbol name)
+                (string? name) (clojure.lang.Keyword/intern #^String name)))
+  ([ns name] (clojure.lang.Keyword/intern ns name)))
 
 (defn spread
   {:private true}
@@ -571,6 +573,13 @@
   ([test then] `(if-not ~test ~then nil))
   ([test then else]
    `(if (not ~test) ~then ~else)))
+
+(defn identical?
+  "Tests if 2 arguments are the same object"
+  {:tag Boolean
+   :inline (fn [x y] `(. clojure.lang.Util identical ~x ~y))
+   :inline-arities #{2}}
+  ([x y] (clojure.lang.Util/identical x y)))
 
 (defn =
   "Equality. Returns true if x equals y, false if not. Same as
@@ -946,10 +955,12 @@
 
 (defn bit-shift-left
   "Bitwise shift left"
+  {:inline (fn [x n] `(. clojure.lang.Numbers (shiftLeft ~x ~n)))}
   [x n] (. clojure.lang.Numbers shiftLeft x n))
 
 (defn bit-shift-right
   "Bitwise shift right"
+  {:inline (fn [x n] `(. clojure.lang.Numbers (shiftRight ~x ~n)))}
   [x n] (. clojure.lang.Numbers shiftRight x n))
 
 (defn even?
@@ -2596,7 +2607,7 @@
 (defn aget
   "Returns the value at the index/indices. Works on Java arrays of all
   types."
-  {:inline (fn [a i] `(. clojure.lang.RT (aget ~a ~i)))
+  {:inline (fn [a i] `(. clojure.lang.RT (aget ~a (int ~i))))
    :inline-arities #{2}}
   ([array idx]
    (clojure.lang.Reflector/prepRet (. Array (get array idx))))
@@ -2606,7 +2617,7 @@
 (defn aset
   "Sets the value at the index/indices. Works on Java arrays of
   reference types. Returns val."
-  {:inline (fn [a i v] `(. clojure.lang.RT (aset ~a ~i ~v)))
+  {:inline (fn [a i v] `(. clojure.lang.RT (aset ~a (int ~i) ~v)))
    :inline-arities #{3}}
   ([array idx val]
    (. Array (set array idx val))
@@ -3690,6 +3701,12 @@
   ([size-or-seq] (. clojure.lang.Numbers double_array size-or-seq))
   ([size init-val-or-seq] (. clojure.lang.Numbers double_array size init-val-or-seq)))
 
+(defn object-array
+  "Creates an array of objects"
+  {:inline (fn [arg] `(. clojure.lang.RT object_array ~arg))
+   :inline-arities #{1}}
+  ([size-or-seq] (. clojure.lang.RT object_array size-or-seq)))
+
 (defn int-array
   "Creates an array of ints"
   {:inline (fn [& args] `(. clojure.lang.Numbers int_array ~@args))
@@ -4659,7 +4676,7 @@
 (load "core_print")
 (load "genclass")
 (load "core_deftype")
-
+(load "gvec")
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; futures (needs proxy);;;;;;;;;;;;;;;;;;
 (defn future-call 
   "Takes a function of no args and yields a future object that will

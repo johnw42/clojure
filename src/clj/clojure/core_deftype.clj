@@ -8,6 +8,16 @@
 
 (in-ns 'clojure.core)
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;; definterface ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;for now, built on gen-interface
+(defmacro definterface 
+  [name & sigs]
+  (let [tag (fn [x] (or (:tag (meta x)) Object))
+        psig (fn [[name [& args]]]
+               (vector name (vec (map tag args)) (tag name)))]
+    `(gen-interface :name ~(symbol (str *ns* "." name)) :methods ~(vec (map psig sigs)))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;; reify/deftype ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn- parse-opts [s]
@@ -36,7 +46,7 @@
         methods (mapcat #(map (fn [[nm [& args] & body]]
                                 `(~nm [~(:as opts) ~@args] ~@body)) %) 
                         (vals impls))]  
-    [interfaces methods]))
+    [interfaces methods opts]))
 
 (defmacro reify 
   "reify is a macro with the following structure:
@@ -221,12 +231,20 @@
   by a metadata map (nil for none) and an extension field map (nil for
   none). 
 
-  The class will have the (immutable) fields named by fields, which
-  can have type hints. Protocols/interfaces and methods are
-  optional. The only methods that can be supplied are those declared
-  in the protocols/interfaces.  Note that method bodies are not
-  closures, the local environment includes only the named fields, and
-  those fields can be accessed directy.
+  The class will have the (by default, immutable) fields named by
+  fields, which can have type hints. Protocols/interfaces and methods
+  are optional. The only methods that can be supplied are those
+  declared in the protocols/interfaces.  Note that method bodies are
+  not closures, the local environment includes only the named fields,
+  and those fields can be accessed directy. Fields can be qualified
+  with the metadata :volatile-mutable true or :unsynchronized-mutable
+  true, at which point (set! afield aval) will be supported in method
+  bodies. Note well that mutable fields are extremely difficult to use
+  correctly, and are present only to facilitate the building of higher
+  level constructs, such as Clojure's reference types, in Clojure
+  itself. They are for experts only - if the semantics and
+  implications of :volatile-mutable or :unsynchronized-mutable are not
+  immediately apparent to you, you should not be using them.
 
   Method definitions take the form:
 
@@ -269,7 +287,7 @@
 
   [name [& fields] & opts+specs]
   (let [gname (if *compile-files* name (gensym (str name "__")))
-        [interfaces methods] (parse-opts+specs opts+specs)
+        [interfaces methods opts] (parse-opts+specs opts+specs)
         classname (symbol (str *ns* "." gname))
         tag (keyword (str *ns*) (str name))
         hinted-fields fields
