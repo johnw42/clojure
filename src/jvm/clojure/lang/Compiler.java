@@ -5209,7 +5209,21 @@ public static Object macroexpand1(Object x) throws Exception{
 		Var v = isMacro(op);
 		if(v != null)
 			{
-			return v.applyTo(RT.cons(form,RT.cons(LOCAL_ENV.get(),form.next())));
+			try
+				{
+				return v.applyTo(RT.cons(form,RT.cons(LOCAL_ENV.get(),form.next())));
+				}
+			catch (CompilerException ex)
+				{
+				throw ex;
+				}
+			catch (Throwable t)
+				{
+				final IPersistentMap meta = RT.meta(form);
+				final String source = (String)SOURCE.deref();
+				final Integer line = (Integer)RT.get(meta, RT.LINE_KEY, 0);
+				throw new CompilerException(source, line, t);
+				}
 			}
 		else
 			{
